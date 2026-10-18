@@ -2,11 +2,11 @@
 
 A sandbox module for PrestaShop 8.2 that previews JSON product differences, applies updates to existing products, and records original values for guarded rollback.
 
-**Current release: 0.3.1.** The internal module directory stays `jsonproductpreview` to support upgrades from the original preview module. This build deliberately runs only on the `test.4shooters.com` sandbox shop; it is not a general production importer.
+**Current release: 0.3.2.** The internal module directory stays `jsonproductpreview` to support upgrades from the original preview module. This build deliberately runs only on the `test.4shooters.com` sandbox shop; it is not a general production importer.
 
 ## Install
 
-1. Download `jsonproductpreview-0.3.1.zip` from [Releases](https://github.com/vm-cllevar/prestashop-json-product-importer/releases).
+1. Download `jsonproductpreview-0.3.2.zip` from [Releases](https://github.com/vm-cllevar/prestashop-json-product-importer/releases).
 2. In PrestaShop, open **Modules → Module Manager → Upload a module** and upload the ZIP.
 3. Select the sandbox shop and configure **JSON Product Importer**.
 4. Upload a JSON file, review actual differences, and select **Apply updates** when ready.

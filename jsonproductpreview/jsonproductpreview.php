@@ -8,7 +8,7 @@ class Jsonproductpreview extends Module
 {
     public function __construct()
     {
-        $this->name='jsonproductpreview';$this->tab='administration';$this->version='0.3.1';
+        $this->name='jsonproductpreview';$this->tab='administration';$this->version='0.3.2';
         $this->author='Sandbox Tools';$this->bootstrap=true;$this->need_instance=0;
         $this->ps_versions_compliancy=array('min'=>'8.2.0','max'=>'8.99.99');
         parent::__construct();
@@ -24,6 +24,17 @@ class Jsonproductpreview extends Module
     {
         return $this->formStart().'<input type="hidden" name="batch_id" value="'.$this->esc($batch['id']).'"><button class="btn '.($rollback?'btn-default':'btn-primary').'" name="'.($rollback?'rollbackJsonProducts':'applyJsonProducts').'" value="1" type="submit">'.($rollback?'Roll back this batch':'Apply '.count($batch['changes']).' product updates').'</button></form>';
     }
+    private function productLink($change)
+    {
+        $url=$this->context->link->getAdminLink('AdminProducts',true,array('id_product'=>(int)$change['id'],'updateproduct'=>1));
+        return '<a href="'.$this->esc($url).'" target="_blank" rel="noopener noreferrer">'.$this->esc($change['reference']).' (#'.(int)$change['id'].') — Edit product</a>';
+    }
+    private function productLinks($changes)
+    {
+        $html='<ul>';
+        foreach ($changes as $change) { $html.='<li>'.$this->productLink($change).'</li>'; }
+        return $html.'</ul>';
+    }
     private function diff($before,$after)
     {
         $html='';
@@ -37,7 +48,7 @@ class Jsonproductpreview extends Module
     {
         $employee=$this->context->employee;
         if (!$employee || !$employee->isLoggedBack()) { return $this->displayError('Administrator login required.'); }
-        $html='<div class="panel"><h2>JSON Product Importer <small>0.3.1 · sandbox</small></h2>';
+        $html='<div class="panel"><h2>JSON Product Importer <small>0.3.2 · sandbox</small></h2>';
         if (Shop::getContext()!==Shop::CONTEXT_SHOP) { return $html.'<p>Select one shop above, then reopen Configure.</p></div>'; }
         $shop=(int)$this->context->shop->id;
         $domain=Db::getInstance()->getValue('SELECT domain FROM `'._DB_PREFIX_.'shop_url` WHERE id_shop='.$shop.' AND main=1',false);
@@ -59,7 +70,7 @@ class Jsonproductpreview extends Module
                 if (($_SERVER['REQUEST_METHOD']??'')!=='POST' || !is_string($token) || !hash_equals(Tools::getAdminTokenLite('AdminModules'),$token) || ((int)$preview+(int)$apply+(int)$rollback)!==1) { throw new RuntimeException('Invalid request. Reopen Configure and try again.'); }
                 if ($apply || $rollback) {
                     $result=$service->execute(Tools::getValue('batch_id'),$shop,(int)$employee->id,$rollback);
-                    $html.='<div class="alert alert-success">'.($rollback?'Rollback complete: original values restored for ':'Applied updates to ').count($result['batch']['changes']).' product(s).</div>';
+                    $html.='<div class="alert alert-success">'.($rollback?'Rollback complete: original values restored for ':'Applied updates to ').count($result['batch']['changes']).' product(s).'.$this->productLinks($result['batch']['changes']).'</div>';
                     if ($result['warning']) { $html.='<div class="alert alert-warning">'.$this->esc($result['warning']).'</div>'; }
                 } else {
                     $file=isset($_FILES['products_json'])?$_FILES['products_json']:null;
@@ -88,7 +99,7 @@ class Jsonproductpreview extends Module
             if (!$history) { $html.='<p>No batches yet.</p>'; }
             foreach ($history as $b) {
                 $html.='<details><summary><strong>'.$this->esc($b['status']).'</strong> · '.count($b['changes']).' product(s) · '.$this->esc(gmdate('Y-m-d H:i:s',$b['created'])).' UTC · '.$this->esc(substr($b['id'],0,8)).'</summary><div style="padding:12px">';
-                foreach ($b['changes'] as $c) { $html.='<p><strong>'.$this->esc($c['reference']).' (#'.(int)$c['id'].')</strong></p>'.$this->diff($c['before'],$c['after']); }
+                foreach ($b['changes'] as $c) { $html.='<p><strong>'.$this->productLink($c).'</strong></p>'.$this->diff($c['before'],$c['after']); }
                 if ($b['status']==='applied') { $html.=$this->button($b,true); }
                 elseif ($b['status']==='preview') { $html.='<p>Not applied. Upload the file again to review a fresh preview.</p>'; }
                 $html.='</div></details>';

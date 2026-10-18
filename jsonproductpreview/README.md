@@ -1,4 +1,4 @@
-# JSON Product Importer 0.3.1
+# JSON Product Importer 0.3.2
 
 PrestaShop 8.2 sandbox module. Internal ID remains `jsonproductpreview` for in-place upgrades. Writes are restricted to the selected `test.4shooters.com` shop and require module configuration/product edit permission, POST, and CSRF validation.
 
