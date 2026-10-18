@@ -74,3 +74,9 @@ expect($late->products[1]['name']==='Original' && $late->batches['batch']['statu
 $zero=new MemoryStore();$zero->products[1]=product();$zs=new JsonProductImportService($zero);$zero->save(batchOf($zs->preview(array(input(1,'Original',19.95,0)),1,1)));
 $zs->execute('batch',1,3,false);expect($zero->products[1]['stock']===0,'Zero applied');$zs->execute('batch',1,3,true);expect($zero->products[1]['stock']===7,'Zero rollback restores previous stock');
 echo "Late failure and stock rollback checks passed\n";
+$jobStore=new MemoryStore();$jobStore->products[1]=product();$jobService=new JsonProductImportService($jobStore);
+$jobBatch=batchOf($jobService->preview(array(input(1,'Job name')),1,1));$jobBatch['created']=time()-7200;$jobBatch['expires']=time()+60;$jobBatch['job_id']='job';$jobStore->save($jobBatch);
+$jobService->execute('batch',1,3,false);expect($jobStore->products[1]['name']==='Job name','Job preview can outlive one hour within explicit expiry');
+$jobStore->batches['batch']['expires']=time()-1;$jobService->execute('batch',1,3,true);expect($jobStore->products[1]['name']==='Original','Rollback remains available after job preview expiry');
+$jobBatch['expires']=time()-1;$jobStore->save($jobBatch);rejects(function()use($jobService){$jobService->execute('batch',1,3,false);},'Expired job apply rejected');
+echo "Job expiry checks passed\n";

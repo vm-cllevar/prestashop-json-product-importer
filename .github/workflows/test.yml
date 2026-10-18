@@ -23,5 +23,8 @@ jobs:
           php tests/source.php
           php tests/updates.php
           php tests/render.php
+          php tests/jobs.php
+      - name: JavaScript syntax
+        run: node --check jsonproductpreview/views/js/jobs.js
       - name: Package
         run: python3 scripts/package.py

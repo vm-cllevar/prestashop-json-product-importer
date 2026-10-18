@@ -55,7 +55,7 @@ class JsonProductImportService
         try {
             $batch=$this->store->batch($id,$shop,$employee,true);
             if ($batch['status']!==($rollback?'applied':'preview')) { throw new RuntimeException('This batch has already been processed or is not available for this action.'); }
-            if (!$rollback && time()-(int)$batch['created']>3600) { throw new RuntimeException('Preview expired. Upload again.'); }
+            if (!$rollback && time()>(isset($batch['expires'])?(int)$batch['expires']:(int)$batch['created']+3600)) { throw new RuntimeException('Preview expired. Upload again.'); }
             if (!$batch['changes']) { throw new RuntimeException('No changes to apply.'); }
             // Lock in deterministic order to reduce deadlocks. Check every row before writing any.
             usort($batch['changes'],function($a,$b){return $a['id']<=>$b['id'];});

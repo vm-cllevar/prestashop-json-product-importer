@@ -10,6 +10,6 @@ output = root / 'dist' / f'jsonproductpreview-{version}.zip'
 output.parent.mkdir(exist_ok=True)
 with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
     for file in sorted(module.rglob('*')):
-        if file.is_file() and file.suffix in ('.php', '.md', '.json'):
+        if file.is_file() and file.suffix in ('.php', '.md', '.json', '.js'):
             archive.write(file, file.relative_to(root))
 print(output)

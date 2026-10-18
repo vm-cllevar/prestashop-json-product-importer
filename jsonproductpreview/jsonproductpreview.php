@@ -3,12 +3,13 @@ if (!defined('_PS_VERSION_')) { exit; }
 require_once __DIR__.'/classes/JsonProductPreviewValidator.php';
 require_once __DIR__.'/classes/JsonProductImportService.php';
 require_once __DIR__.'/classes/JsonProductImportStore.php';
+require_once __DIR__.'/classes/JsonProductImportJobs.php';
 
 class Jsonproductpreview extends Module
 {
     public function __construct()
     {
-        $this->name='jsonproductpreview';$this->tab='administration';$this->version='0.3.2';
+        $this->name='jsonproductpreview';$this->tab='administration';$this->version='0.4.0';
         $this->author='Sandbox Tools';$this->bootstrap=true;$this->need_instance=0;
         $this->ps_versions_compliancy=array('min'=>'8.2.0','max'=>'8.99.99');
         parent::__construct();
@@ -44,11 +45,16 @@ class Jsonproductpreview extends Module
         }
         return $html;
     }
+    private function jobsPanel()
+    {
+        $endpoint=$this->context->link->getAdminLink('AdminModules',true).'&configure='.$this->name;
+        return '<section id="jpp-jobs" data-endpoint="'.$this->esc($endpoint).'" data-token="'.$this->esc(Tools::getAdminTokenLite('AdminModules')).'"><h3>Full-file import jobs</h3><p>Up to 64 MiB / 100,000 records. Upload and preview do not change products. Apply uses 100-record transactions; pause and resume at batch boundaries. Rollback reverses applied batches and stops on conflicts. Job previews expire after 24 hours.</p><label>Full JSON file <input type="file" data-ui="file" accept=".json,application/json"></label> <button type="button" class="btn btn-primary" data-ui="upload">Upload and preview full file</button> <button type="button" class="btn btn-default" data-ui="new">New job</button><p><label>Saved jobs <select data-ui="jobs"></select></label> <button type="button" class="btn btn-default" data-ui="load">Load job</button></p><div data-ui="status" role="status" aria-live="polite">Choose a file or load a saved job.</div><p data-ui="summary"></p><p><button type="button" class="btn btn-default" data-ui="preview">Resume preview</button> <button type="button" class="btn btn-primary" data-ui="apply">Apply reviewed updates</button> <button type="button" class="btn btn-default" data-ui="rollback">Roll back job</button> <button type="button" class="btn btn-default" data-ui="stop">Pause</button></p><p><button type="button" class="btn btn-default" data-ui="previous" disabled>Previous batch</button> <span data-ui="page-label"></span> <button type="button" class="btn btn-default" data-ui="next" disabled>Next batch</button></p><div class="table-responsive"><table class="table"><thead><tr><th>Row / SKU</th><th>Result</th><th>Actual differences</th></tr></thead><tbody data-ui="rows"></tbody></table></div><p>Normalized input, previews and rollback originals are retained in the database. Rollback is atomic per batch, not for the whole file; previously completed batches remain committed if a later batch conflicts.</p></section><script src="'.$this->esc($this->_path.'views/js/jobs.js?v=0.4.0').'" defer></script><hr>';
+    }
     public function getContent()
     {
         $employee=$this->context->employee;
         if (!$employee || !$employee->isLoggedBack()) { return $this->displayError('Administrator login required.'); }
-        $html='<div class="panel"><h2>JSON Product Importer <small>0.3.2 · sandbox</small></h2>';
+        $html='<div class="panel"><h2>JSON Product Importer <small>0.4.0 · sandbox</small></h2>';
         if (Shop::getContext()!==Shop::CONTEXT_SHOP) { return $html.'<p>Select one shop above, then reopen Configure.</p></div>'; }
         $shop=(int)$this->context->shop->id;
         $domain=Db::getInstance()->getValue('SELECT domain FROM `'._DB_PREFIX_.'shop_url` WHERE id_shop='.$shop.' AND main=1',false);
@@ -62,13 +68,27 @@ class Jsonproductpreview extends Module
         $currency=new Currency((int)Configuration::get('PS_CURRENCY_DEFAULT',null,null,$shop));
         $html.='<p>Shop: <strong>'.$this->esc($this->context->shop->name).'</strong> (ID '.$shop.'). Existing products only. Names: default language '.$language.'. Prices: '.$this->esc($currency->iso_code).' base price, used directly; checkout tax rules stay unchanged.</p><p>Preview makes no catalog changes. Apply updates only the differences listed below. Missing stock stays unchanged. Each applied batch records its original values for rollback.</p>';
         $store=new JsonProductImportStore();$service=new JsonProductImportService($store);
+        $jobAction=Tools::getValue('jpp_job_action');
         try {
             $store->setup();
+            if ($jobAction) {
+                try {
+                    $token=Tools::getValue('preview_token');
+                    if (($_SERVER['REQUEST_METHOD']??'')!=='POST' || !is_string($token) || !hash_equals(Tools::getAdminTokenLite('AdminModules'),$token)) { throw new RuntimeException('Invalid session token. Reload Configure.'); }
+                    $jobs=new JsonProductImportJobs($store,$shop,(int)$employee->id,$language);$jobs->setup();
+                    $response=array_merge(array('ok'=>true),$jobs->dispatch($jobAction,$_POST));
+                } catch (Throwable $e) { $response=array('ok'=>false,'error'=>$e->getMessage()); }
+                header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
+                echo json_encode($response,JSON_INVALID_UTF8_SUBSTITUTE);exit;
+            }
+            $html.=$this->jobsPanel();
             $preview=Tools::isSubmit('previewJsonProducts');$apply=Tools::isSubmit('applyJsonProducts');$rollback=Tools::isSubmit('rollbackJsonProducts');
             if ($preview || $apply || $rollback) {
                 $token=Tools::getValue('preview_token');
                 if (($_SERVER['REQUEST_METHOD']??'')!=='POST' || !is_string($token) || !hash_equals(Tools::getAdminTokenLite('AdminModules'),$token) || ((int)$preview+(int)$apply+(int)$rollback)!==1) { throw new RuntimeException('Invalid request. Reopen Configure and try again.'); }
                 if ($apply || $rollback) {
+                    $selectedBatch=$store->batch(Tools::getValue('batch_id'),$shop,(int)$employee->id);
+                    if(isset($selectedBatch['job_id'])) { throw new RuntimeException('Use the full-file job controls for this batch.'); }
                     $result=$service->execute(Tools::getValue('batch_id'),$shop,(int)$employee->id,$rollback);
                     $html.='<div class="alert alert-success">'.($rollback?'Rollback complete: original values restored for ':'Applied updates to ').count($result['batch']['changes']).' product(s).'.$this->productLinks($result['batch']['changes']).'</div>';
                     if ($result['warning']) { $html.='<div class="alert alert-warning">'.$this->esc($result['warning']).'</div>'; }
@@ -100,7 +120,8 @@ class Jsonproductpreview extends Module
             foreach ($history as $b) {
                 $html.='<details><summary><strong>'.$this->esc($b['status']).'</strong> · '.count($b['changes']).' product(s) · '.$this->esc(gmdate('Y-m-d H:i:s',$b['created'])).' UTC · '.$this->esc(substr($b['id'],0,8)).'</summary><div style="padding:12px">';
                 foreach ($b['changes'] as $c) { $html.='<p><strong>'.$this->productLink($c).'</strong></p>'.$this->diff($c['before'],$c['after']); }
-                if ($b['status']==='applied') { $html.=$this->button($b,true); }
+                if (isset($b['job_id'])) { $html.='<p>Managed by full-file job '. $this->esc(substr($b['job_id'],0,8)).'. Use the job controls above.</p>'; }
+                elseif ($b['status']==='applied') { $html.=$this->button($b,true); }
                 elseif ($b['status']==='preview') { $html.='<p>Not applied. Upload the file again to review a fresh preview.</p>'; }
                 $html.='</div></details>';
             }
