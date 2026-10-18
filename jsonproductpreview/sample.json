@@ -1,0 +1,4 @@
+[
+  {"reference":"TEST-SKU-001","name":"Sandbox product one","price":19.95,"stock":5},
+  {"reference":"TEST-SKU-002","name":"Sandbox product two","price":0,"stock":0}
+]

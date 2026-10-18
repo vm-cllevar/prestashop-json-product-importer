@@ -1,0 +1,10 @@
+# Store exports and local verification artifacts
+/approved-matches*.json
+/sandbox-rollback-test.json
+/*.jpg
+/*.png
+/*.zip
+/dist/
+/docs/
+/.codebase-memory/
+.DS_Store

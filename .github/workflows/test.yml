@@ -1,0 +1,27 @@
+name: PHP checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring
+          coverage: none
+      - name: Lint
+        run: find jsonproductpreview tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Test
+        run: |
+          php tests/validator.php
+          php tests/source.php
+          php tests/updates.php
+          php tests/render.php
+      - name: Package
+        run: python3 scripts/package.py
